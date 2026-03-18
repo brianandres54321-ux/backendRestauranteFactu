@@ -4,7 +4,9 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -13,13 +15,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.empresafac.backend_factu.Security.EmpresaContext;
 import com.empresafac.backend_factu.dto_temp.request.AbrirPedidoRequest;
 import com.empresafac.backend_factu.dto_temp.request.AgregarProductoRequest;
 import com.empresafac.backend_factu.dto_temp.request.RegistrarPagoRequest;
 import com.empresafac.backend_factu.dto_temp.response.PedidoResponse;
 import com.empresafac.backend_factu.entities.Pago;
 import com.empresafac.backend_factu.entities.Pedido;
+import com.empresafac.backend_factu.entities.Usuario;
 import com.empresafac.backend_factu.services.PedidoService;
 import com.empresafac.backend_factu.services.UsuarioService;
 
@@ -31,18 +33,17 @@ import lombok.RequiredArgsConstructor;
 public class PedidoController {
 
     private final PedidoService pedidoService;
-    private final EmpresaContext empresaContext;
     private final UsuarioService usuarioService;
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('CAJERO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CAJERO', 'MESERO')")
     @PostMapping("/abrir")
     public PedidoResponse abrir(@PathVariable Long empresaId,
             @RequestBody AbrirPedidoRequest req) {
-        com.empresafac.backend_factu.entities.Usuario usuario = usuarioService.obtenerPorId(empresaId, req.getUsuarioId());
+        Usuario usuario = usuarioService.obtenerPorId(empresaId, req.getUsuarioId());
         return pedidoService.abrirPedido(empresaId, req.getMesaId(), usuario);
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('CAJERO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CAJERO', 'MESERO')")
     @PostMapping("/{pedidoId}/productos")
     public PedidoResponse agregarProducto(@PathVariable Long empresaId,
             @PathVariable Long pedidoId,
@@ -50,7 +51,15 @@ public class PedidoController {
         return pedidoService.agregarProducto(empresaId, pedidoId, req.getProductoId(), req.getCantidad());
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('CAJERO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CAJERO', 'MESERO')")
+    @DeleteMapping("/items/{itemId}")
+    public PedidoResponse eliminarItem(
+            @PathVariable("empresaId") Long empresaId,
+            @PathVariable("itemId") Long itemId) {
+        return pedidoService.eliminarItem(empresaId, itemId);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'CAJERO', 'MESERO')")
     @PostMapping("/{pedidoId}/pago")
     public PedidoResponse registrarPago(@PathVariable Long empresaId,
             @PathVariable Long pedidoId,
@@ -62,11 +71,10 @@ public class PedidoController {
     public List<PedidoResponse> listar(@PathVariable Long empresaId,
             @RequestParam(required = false) Pedido.Estado estado) {
         if (estado == null) {
-            // default to all or open
             estado = Pedido.Estado.ABIERTO;
         }
         return pedidoService.listarPorEmpresa(empresaId, estado).stream()
-                .map(pedido -> pedidoService.construirResponse(pedido))
+                .map(pedidoService::construirResponse)
                 .collect(Collectors.toList());
     }
 
@@ -77,17 +85,34 @@ public class PedidoController {
         return pedidoService.construirResponse(p);
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('CAJERO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CAJERO')")
     @PutMapping("/{pedidoId}/cerrar")
     public PedidoResponse cerrar(@PathVariable Long empresaId,
             @PathVariable Long pedidoId) {
         return pedidoService.cerrarPedido(empresaId, pedidoId);
     }
 
-    @PreAuthorize("hasRole('ADMIN') or hasRole('CAJERO')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'CAJERO')")
     @PutMapping("/{pedidoId}/cancelar")
     public PedidoResponse cancelar(@PathVariable Long empresaId,
             @PathVariable Long pedidoId) {
         return pedidoService.cancelarPedido(empresaId, pedidoId);
+    }
+
+    // ✅ NUEVO — Restaurar pedido cancelado a ABIERTO
+    @PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/{pedidoId}/restaurar")
+    public PedidoResponse restaurar(@PathVariable Long empresaId,
+            @PathVariable Long pedidoId) {
+        return pedidoService.restaurarPedido(empresaId, pedidoId);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN', 'CAJERO', 'MESERO')")
+    @PatchMapping("/{pedidoId}/cocina")
+    public PedidoResponse actualizarEstadoCocina(
+            @PathVariable Long empresaId,
+            @PathVariable Long pedidoId,
+            @RequestParam String estado) {
+        return pedidoService.actualizarEstadoCocina(empresaId, pedidoId, estado);
     }
 }

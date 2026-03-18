@@ -1,12 +1,12 @@
 package com.empresafac.backend_factu.controllers;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.empresafac.backend_factu.Security.EmpresaContext;
 import com.empresafac.backend_factu.dto_temp.request.ProductoRequest;
 import com.empresafac.backend_factu.dto_temp.response.ProductoResponse;
 import com.empresafac.backend_factu.entities.Producto;
@@ -28,61 +27,84 @@ import lombok.RequiredArgsConstructor;
 public class ProductoController {
 
     private final ProductoService productoService;
-    private final EmpresaContext empresaContext;
 
+    // Listar productos
     @GetMapping
     public List<ProductoResponse> listar(@PathVariable Long empresaId) {
-        return productoService.listar(empresaId).stream()
-                .map(p -> new ProductoResponse(
-                p.getId(), p.getNombre(), p.getDescripcion(), p.getCodigoBarras(),
-                p.getActivo(), null))
-                .collect(Collectors.toList());
+        return productoService.listar(empresaId);
     }
 
+    // Obtener producto por ID
     @GetMapping("/{id}")
-    public ProductoResponse obtener(@PathVariable Long empresaId,
-            @PathVariable Long id) {
-        Producto p = productoService.obtener(empresaId, id);
-        return new ProductoResponse(
-                p.getId(), p.getNombre(), p.getDescripcion(), p.getCodigoBarras(),
-                p.getActivo(), null);
+    public ProductoResponse obtener(@PathVariable Long empresaId, @PathVariable Long id) {
+        return productoService.obtener(empresaId, id);
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    // Crear producto
     @PostMapping
-    public ProductoResponse crear(@PathVariable Long empresaId,
-            @RequestBody ProductoRequest req) {
-        Producto p = new Producto();
-        // empresa se asigna automáticamente en servicio si es necesario
-        p.setNombre(req.getNombre());
-        p.setDescripcion(req.getDescripcion());
-        p.setCodigoBarras(req.getCodigoBarras());
-        Producto saved = productoService.guardar(p);
-        return new ProductoResponse(
-                saved.getId(), saved.getNombre(), saved.getDescripcion(), saved.getCodigoBarras(),
-                saved.getActivo(), null);
+    @PreAuthorize("hasRole('ADMIN')")
+    public ProductoResponse crear(@PathVariable Long empresaId, @RequestBody ProductoRequest req) {
+
+        // 1. Mapeo de datos
+        Producto producto = new Producto();
+        producto.setNombre(req.getNombre());
+        producto.setDescripcion(req.getDescripcion());
+        producto.setCodigoBarras(req.getCodigoBarras());
+        producto.setImagenUrl(req.getImagenUrl());
+
+        // 2. Llamada al servicio (Asegúrate de que NO haya un return antes de esta
+        // línea)
+        return productoService.crear(
+                empresaId,
+                producto,
+                req.getCategoriaId(),
+                req.getPrecioVenta(),
+                req.getCosto(),
+                req.getStockInicial());
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    // Actualizar producto
     @PutMapping("/{id}")
-    public ProductoResponse actualizar(@PathVariable Long empresaId,
+    @PreAuthorize("hasRole('ADMIN')")
+    public ProductoResponse actualizar(
+            @PathVariable Long empresaId,
             @PathVariable Long id,
             @RequestBody ProductoRequest req) {
-        Producto p = productoService.obtener(empresaId, id);
-        p.setNombre(req.getNombre());
-        p.setDescripcion(req.getDescripcion());
-        p.setCodigoBarras(req.getCodigoBarras());
-        Producto saved = productoService.guardar(p);
-        return new ProductoResponse(
-                saved.getId(), saved.getNombre(), saved.getDescripcion(), saved.getCodigoBarras(),
-                saved.getActivo(), null);
+
+        Producto producto = new Producto();
+        producto.setNombre(req.getNombre());
+        producto.setDescripcion(req.getDescripcion());
+        producto.setCodigoBarras(req.getCodigoBarras());
+        producto.setImagenUrl(req.getImagenUrl());
+
+        return productoService.actualizar(
+                empresaId,
+                id,
+                producto,
+                req.getCategoriaId(),
+                req.getPrecioVenta(),
+                req.getStockInicial());
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> eliminar(@PathVariable Long empresaId,
-            @PathVariable Long id) {
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> eliminar(@PathVariable Long empresaId, @PathVariable Long id) {
         productoService.eliminar(empresaId, id);
         return ResponseEntity.noContent().build();
     }
+
+    @PatchMapping("/{id}/activar")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<Void> activar(@PathVariable Long empresaId, @PathVariable Long id) {
+        productoService.activar(empresaId, id);
+        return ResponseEntity.noContent().build();
+    }
+
+    // Listar solo productos eliminados (Inactivos)
+    @GetMapping("/inactivos")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<ProductoResponse> listarInactivos(@PathVariable Long empresaId) {
+        return productoService.listarInactivos(empresaId);
+    }
+
 }

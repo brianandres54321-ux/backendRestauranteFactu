@@ -17,8 +17,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "productos",
-        uniqueConstraints = @UniqueConstraint(columnNames = {"empresa_id", "codigo_barras"}))
+@Table(name = "productos", uniqueConstraints = @UniqueConstraint(columnNames = { "empresa_id", "codigo_barras" }))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -45,6 +44,8 @@ public class Producto {
     @Column(name = "codigo_barras", length = 60)
     private String codigoBarras;
 
+    // ✅ TEXT en vez de varchar(255) — soporta imágenes en Base64
+    @Column(name = "imagen_url", columnDefinition = "TEXT")
     private String imagenUrl;
 
     private Boolean activo = true;

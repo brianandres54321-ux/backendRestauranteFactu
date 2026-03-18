@@ -23,7 +23,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/empresas/{empresaId}/precios")
-@RequiredArgsConstructor
+@RequiredArgsConstructor 
 public class PrecioController {
 
     private final PrecioService precioService;

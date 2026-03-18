@@ -27,7 +27,7 @@ import lombok.Setter;
 public class Pago {
 
     public enum Metodo {
-        EFECTIVO, TARJETA, NEQUI, TRANSFERENCIA
+        EFECTIVO, MERCADOPAGO
     }
 
     @Id

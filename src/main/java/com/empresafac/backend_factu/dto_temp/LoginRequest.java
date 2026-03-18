@@ -1,7 +1,7 @@
 package com.empresafac.backend_factu.dto_temp;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -9,11 +9,11 @@ import lombok.Setter;
 @Setter
 public class LoginRequest {
 
-    @NotNull
-    private Long empresaId;
-
+    // @NotNull
+    // private Long empresaId;
+    @Email
     @NotBlank
-    private String username;
+    private String email;
 
     @NotBlank
     private String password;

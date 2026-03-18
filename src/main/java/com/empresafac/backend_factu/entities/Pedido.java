@@ -2,16 +2,21 @@ package com.empresafac.backend_factu.entities;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import lombok.AllArgsConstructor;
@@ -29,6 +34,12 @@ public class Pedido {
 
     public enum Estado {
         ABIERTO, PAGADO, CANCELADO
+    }
+
+    public enum EstadoCocina {
+        PENDIENTE,
+        EN_PREPARACION,
+        LISTO
     }
 
     @Id
@@ -54,6 +65,10 @@ public class Pedido {
     @Enumerated(EnumType.STRING)
     private Estado estado = Estado.ABIERTO;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "estado_cocina", length = 20)
+    private EstadoCocina estadoCocina = EstadoCocina.PENDIENTE;
+
     @Column(precision = 14, scale = 2)
     private BigDecimal total = BigDecimal.ZERO;
 
@@ -63,4 +78,8 @@ public class Pedido {
 
     @Version
     private Long version;
+
+    @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
+    private List<PedidoItem> items = new ArrayList<>();
+
 }

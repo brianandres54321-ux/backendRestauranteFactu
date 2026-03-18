@@ -1,6 +1,7 @@
 package com.empresafac.backend_factu.dto_temp.request;
 
-import jakarta.validation.constraints.NotBlank;
+import java.math.BigDecimal;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -8,9 +9,13 @@ import lombok.Setter;
 @Setter
 public class ProductoRequest {
 
-    @NotBlank
     private String nombre;
     private String descripcion;
     private String codigoBarras;
     private Long categoriaId;
+    private String imagenUrl;
+    private BigDecimal precioVenta;
+    private BigDecimal costo;
+    private BigDecimal stockInicial;
+
 }

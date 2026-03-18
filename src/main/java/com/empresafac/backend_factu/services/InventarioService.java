@@ -28,7 +28,7 @@ public class InventarioService {
     public void descontarStock(Long empresaId, Producto producto, BigDecimal cantidad) {
 
         Inventario inventario = inventarioRepository
-                .findByProductoId(producto.getId())
+                .findByProductoIdAndProductoEmpresaId(producto.getId(), empresaId)
                 .orElseThrow(() -> new RuntimeException("Inventario no encontrado"));
 
         if (inventario.getStockActual().compareTo(cantidad) < 0) {
@@ -110,5 +110,33 @@ public class InventarioService {
                 .findByProductoIdAndProductoEmpresaId(productoId, empresaId)
                 .orElseThrow(() -> new RuntimeException("Inventario no encontrado"));
         inventarioRepository.delete(inv);
+    }
+
+    /**
+     * Aumenta el stock cuando se elimina un ítem de un pedido o se cancela.
+     */
+    @Transactional
+    public void aumentarStock(Long empresaId, Producto producto, BigDecimal cantidad) {
+
+        Inventario inventario = inventarioRepository
+                .findByProductoIdAndProductoEmpresaId(producto.getId(), empresaId)
+                .orElseThrow(() -> new RuntimeException("Inventario no encontrado para el producto: " + producto.getNombre()));
+
+        // Sumar al stock actual
+        inventario.setStockActual(
+                inventario.getStockActual().add(cantidad)
+        );
+
+        inventarioRepository.save(inventario);
+
+        // Registrar el movimiento de entrada
+        MovimientoInventario mov = new MovimientoInventario();
+        mov.setEmpresa(producto.getEmpresa());
+        mov.setProducto(producto);
+        mov.setTipo(MovimientoInventario.Tipo.ENTRADA); // Es una entrada porque el producto vuelve al estante
+        mov.setCantidad(cantidad);
+        mov.setMotivo("Anulación/Devolución de ítem en pedido");
+
+        movimientoRepository.save(mov);
     }
 }

@@ -39,11 +39,14 @@ public class Usuario {
     @JoinColumn(name = "empresa_id")
     private Empresa empresa;
 
-    @Column(nullable = false, length = 100)
+    @Column(nullable = false, length = 100) 
     private String nombre;
 
     @Column(nullable = false, length = 50)
     private String username;
+
+    @Column(nullable = false, unique = true, length = 100)
+    private String email;
 
     @Column(nullable = false)
     private String password;

@@ -17,8 +17,8 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "pedido_items")
-@Getter
 @Setter
+@Getter
 @NoArgsConstructor
 @AllArgsConstructor
 public class PedidoItem {
@@ -42,4 +42,5 @@ public class PedidoItem {
     private BigDecimal precioUnitario;
 
     private String notas;
+
 }

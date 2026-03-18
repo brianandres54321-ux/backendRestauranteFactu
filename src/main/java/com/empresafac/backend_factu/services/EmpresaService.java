@@ -8,6 +8,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.empresafac.backend_factu.entities.Empresa;
 import com.empresafac.backend_factu.repositories.EmpresaRepository;
+import com.empresafac.backend_factu.repositories.MesaRepository;
+import com.empresafac.backend_factu.repositories.UsuarioRepository;
 
 import lombok.RequiredArgsConstructor;
 
@@ -17,47 +19,97 @@ import lombok.RequiredArgsConstructor;
 public class EmpresaService {
 
     private final EmpresaRepository empresaRepository;
+    private final MesaRepository mesaRepository;
+    private final UsuarioRepository usuarioRepository;
+    private final PlanValidadorService planValidador;
 
-    /**
-     * Crea una empresa nueva. No valida ningún campo adicional por ahora.
-     */
     public Empresa crear(Empresa empresa) {
         return empresaRepository.save(empresa);
     }
 
-    /**
-     * Lista únicamente las empresas activas.
-     */
     public List<Empresa> listar() {
         return empresaRepository.findAllByActivaTrue();
     }
 
-    /**
-     * Busca una empresa activa por id.
-     */
     public Optional<Empresa> buscarPorId(Long id) {
         return empresaRepository.findByIdAndActivaTrue(id);
     }
 
-    /**
-     * Actualiza datos básicos de una empresa activa. Devuelve la entidad
-     * modificada.
-     */
     @Transactional
     public Empresa actualizar(Long id, Empresa datos) {
         Empresa existente = empresaRepository.findByIdAndActivaTrue(id)
                 .orElseThrow(() -> new RuntimeException("Empresa no encontrada"));
-        // copiar campos que se permiten cambiar
+
+        // ✅ Si cambia el plan, validar que el nuevo plan soporta lo que ya tiene
+        String planActual = existente.getPlan();
+        String planNuevo = datos.getPlan() != null ? datos.getPlan().toUpperCase() : planActual;
+
+        if (!planNuevo.equals(planActual)) {
+            validarDowngrade(id, planActual, planNuevo);
+        }
+
         existente.setNombre(datos.getNombre());
         existente.setNitRut(datos.getNitRut());
-        existente.setPlan(datos.getPlan());
-        // no tocamos creadaEn o id
+        existente.setPlan(planNuevo);
         return empresaRepository.save(existente);
     }
 
     /**
-     * Desactiva (soft delete) la empresa.
+     * Valida que al bajar de plan no se excedan los nuevos límites.
+     * Lanza excepción con mensaje descriptivo si hay conflicto.
      */
+    private void validarDowngrade(Long empresaId, String planActual, String planNuevo) {
+        // Solo importa si es un downgrade real
+        if (esUpgrade(planActual, planNuevo))
+            return;
+
+        int mesasActuales = mesaRepository.findAllByEmpresaIdAndActivaTrue(empresaId).size();
+        int usuariosActuales = usuarioRepository.findAllByEmpresaId(empresaId).size();
+
+        int limiteMesasNuevo = planValidador.getLimiteMesas(planNuevo);
+        int limiteUsuariosNuevo = planValidador.getLimiteUsuarios(planNuevo);
+
+        StringBuilder errores = new StringBuilder();
+
+        if (mesasActuales > limiteMesasNuevo) {
+            errores.append("Tienes ").append(mesasActuales)
+                    .append(" mesa(s) activas y el plan ").append(planNuevo)
+                    .append(" permite máximo ").append(limiteMesasNuevo).append(". ");
+        }
+
+        if (usuariosActuales > limiteUsuariosNuevo) {
+            errores.append("Tienes ").append(usuariosActuales)
+                    .append(" usuario(s) y el plan ").append(planNuevo)
+                    .append(" permite máximo ").append(limiteUsuariosNuevo).append(". ");
+        }
+
+        // Si el nuevo plan no permite MercadoPago, solo advertir (no bloquear)
+        // porque los pagos anteriores ya están registrados
+
+        if (errores.length() > 0) {
+            throw new RuntimeException(
+                    "No puedes bajar al plan " + planNuevo + ". " + errores +
+                            "Elimina el excedente antes de cambiar de plan.");
+        }
+    }
+
+    /**
+     * Determina si el cambio es una subida de plan (upgrade).
+     * Orden: BASICO < PRO < PREMIUM
+     */
+    private boolean esUpgrade(String planActual, String planNuevo) {
+        int[] nivel = { nivelPlan(planActual), nivelPlan(planNuevo) };
+        return nivel[1] > nivel[0];
+    }
+
+    private int nivelPlan(String plan) {
+        return switch (plan != null ? plan.toUpperCase() : "BASICO") {
+            case "PRO" -> 2;
+            case "PREMIUM" -> 3;
+            default -> 1; // BASICO
+        };
+    }
+
     @Transactional
     public void eliminar(Long id) {
         Empresa existente = empresaRepository.findByIdAndActivaTrue(id)

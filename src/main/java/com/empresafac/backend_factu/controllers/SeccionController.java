@@ -27,7 +27,7 @@ public class SeccionController {
 
     private final SeccionService seccionService;
 
-    @GetMapping
+    @GetMapping 
     public List<SeccionResponse> listar(@PathVariable Long empresaId) {
         return seccionService.listar(empresaId)
                 .stream()

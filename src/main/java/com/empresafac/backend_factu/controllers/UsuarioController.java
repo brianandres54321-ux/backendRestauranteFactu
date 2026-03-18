@@ -26,23 +26,19 @@ public class UsuarioController {
     private final UsuarioService usuarioService;
     private final EmpresaContext empresaContext;
 
-    // 🔹 Crear
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public Usuario crear(@RequestBody Usuario request) {
-
         Long empresaId = empresaContext.getEmpresaIdActual();
-
         return usuarioService.crearUsuario(
                 request.getNombre(),
                 request.getUsername(),
-                request.getPassword(),
+                request.getEmail(), // ✅ email primero
+                request.getPassword(), // ✅ password después
                 request.getRol(),
-                empresaId
-        );
+                empresaId);
     }
 
-    // 🔹 Listar
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping
     public List<Usuario> listar() {
@@ -50,7 +46,6 @@ public class UsuarioController {
         return usuarioService.listarPorEmpresa(empresaId);
     }
 
-    // 🔹 Obtener por ID
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/{usuarioId}")
     public Usuario obtener(@PathVariable Long usuarioId) {
@@ -58,27 +53,23 @@ public class UsuarioController {
         return usuarioService.obtenerPorId(empresaId, usuarioId);
     }
 
-    // 🔹 Actualizar
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{usuarioId}")
     public Usuario actualizar(
             @PathVariable Long usuarioId,
             @RequestBody Usuario request) {
-
         Long empresaId = empresaContext.getEmpresaIdActual();
-
         return usuarioService.actualizarUsuario(
                 empresaId,
                 usuarioId,
                 request.getNombre(),
                 request.getUsername(),
+                request.getEmail(), // ✅ email incluido
                 request.getPassword(),
                 request.getRol(),
-                request.getActivo() 
-        );
+                request.getActivo());
     }
 
-    // 🔹 Desactivar (soft delete)
     @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{usuarioId}")
     public void desactivar(@PathVariable Long usuarioId) {
@@ -86,7 +77,6 @@ public class UsuarioController {
         usuarioService.desactivarUsuario(empresaId, usuarioId);
     }
 
-    // 🔹 Reactivar
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{usuarioId}/activar")
     public void activar(@PathVariable Long usuarioId) {

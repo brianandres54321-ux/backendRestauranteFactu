@@ -18,4 +18,5 @@ public class PrecioResponse {
     private BigDecimal costo;
     private Boolean activo;
     private LocalDateTime fechaInicio;
+
 }

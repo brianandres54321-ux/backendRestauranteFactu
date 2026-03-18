@@ -9,16 +9,17 @@ import com.empresafac.backend_factu.entities.Pedido;
 
 public interface PedidoRepository extends JpaRepository<Pedido, Long> {
 
-    List<Pedido> findAllByEmpresaIdAndEstado(
-            Long empresaId,
-            Pedido.Estado estado
-    );
+        List<Pedido> findAllByEmpresaIdAndEstado(
+                        Long empresaId,
+                        Pedido.Estado estado);
 
-    Optional<Pedido> findByMesaIdAndEstado(
-            Long mesaId,
-            Pedido.Estado estado
-    ); 
+        Optional<Pedido> findByMesaIdAndEstado(
+                        Long mesaId,
+                        Pedido.Estado estado);
 
-    Optional<Pedido> findByIdAndEmpresaId(Long id, Long empresaId);
-    List<Pedido> findAllByEmpresaId(Long empresaId);
+        Optional<Pedido> findByGrupoIdAndEstado(Long grupoId, Pedido.Estado estado);
+
+        Optional<Pedido> findByIdAndEmpresaId(Long id, Long empresaId);
+
+        List<Pedido> findAllByEmpresaId(Long empresaId);
 }

@@ -11,4 +11,5 @@ public class RegistrarPagoRequest {
 
     private String metodo; // EFECTIVO, TARJETA...
     private BigDecimal monto;
+    private String codigoCupon;
 }

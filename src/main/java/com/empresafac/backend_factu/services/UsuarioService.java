@@ -20,17 +20,26 @@ public class UsuarioService {
     private final UsuarioRepository usuarioRepository;
     private final EmpresaRepository empresaRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PlanValidadorService planValidador; // ✅ inyectado
 
     @Transactional
     public Usuario crearUsuario(
             String nombre,
             String username,
+            String email,
             String password,
             Usuario.Rol rol,
             Long empresaIdActual) {
 
+        // ✅ Validar límite del plan antes de crear
+        planValidador.validarLimiteUsuarios(empresaIdActual);
+
         if (usuarioRepository.existsByUsernameAndEmpresaId(username, empresaIdActual)) {
             throw new RuntimeException("Username ya existe en la empresa");
+        }
+
+        if (usuarioRepository.existsByEmailAndEmpresaId(email, empresaIdActual)) {
+            throw new RuntimeException("Email ya existe en la empresa");
         }
 
         Empresa empresa = empresaRepository.findById(empresaIdActual)
@@ -40,6 +49,7 @@ public class UsuarioService {
         usuario.setEmpresa(empresa);
         usuario.setNombre(nombre);
         usuario.setUsername(username);
+        usuario.setEmail(email);
         usuario.setPassword(passwordEncoder.encode(password));
         usuario.setRol(rol);
         usuario.setActivo(true);
@@ -68,20 +78,26 @@ public class UsuarioService {
             Long usuarioId,
             String nombre,
             String username,
+            String email,
             String password,
             Usuario.Rol rol,
             Boolean activo) {
 
         Usuario usuario = obtenerPorId(empresaId, usuarioId);
 
-        // validar username si cambia
         if (!usuario.getUsername().equals(username)
                 && usuarioRepository.existsByUsernameAndEmpresaId(username, empresaId)) {
             throw new RuntimeException("Username ya existe en la empresa");
         }
 
+        if (!usuario.getEmail().equals(email)
+                && usuarioRepository.existsByEmailAndEmpresaId(email, empresaId)) {
+            throw new RuntimeException("Email ya existe en la empresa");
+        }
+
         usuario.setNombre(nombre);
         usuario.setUsername(username);
+        usuario.setEmail(email);
         usuario.setRol(rol);
 
         if (password != null && !password.isBlank()) {
@@ -99,11 +115,13 @@ public class UsuarioService {
     public void desactivarUsuario(Long empresaId, Long usuarioId) {
         Usuario usuario = obtenerPorId(empresaId, usuarioId);
         usuario.setActivo(false);
+        usuarioRepository.save(usuario);
     }
 
     @Transactional
     public void activarUsuario(Long empresaId, Long usuarioId) {
         Usuario usuario = obtenerPorId(empresaId, usuarioId);
         usuario.setActivo(true);
+        usuarioRepository.save(usuario);
     }
 }
