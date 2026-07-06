@@ -18,7 +18,7 @@ import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/auth")
-@RequiredArgsConstructor
+@RequiredArgsConstructor 
 public class AuthController {
 
     private final AuthService authService;
@@ -30,7 +30,7 @@ public class AuthController {
     }
 
     /**
-     * Emite un nuevo token JWT con el plan actualizado del usuario autenticado.
+     * Emite un nuevo token JWT con el plan actualizado del usuario autenticado. 
      * Llamar después de cambiar el plan de la empresa.
      */
     @PostMapping("/refresh-token")
