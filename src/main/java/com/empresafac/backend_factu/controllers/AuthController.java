@@ -25,14 +25,14 @@ public class AuthController {
 
     // @PostMapping("/login")
     // public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
-    //     String token = authService.login(request.getEmail(), request.getPassword());
-    //     return ResponseEntity.ok(Map.of("token", token));
+    // String token = authService.login(request.getEmail(), request.getPassword());
+    // return ResponseEntity.ok(Map.of("token", token));
     // }
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
 
-        System.out.println("ENTRÓ AL LOGIN");
+        System.out.println("======== ENTRÓ AL LOGIN ========");
 
         String token = authService.login(request.getEmail(), request.getPassword());
 
