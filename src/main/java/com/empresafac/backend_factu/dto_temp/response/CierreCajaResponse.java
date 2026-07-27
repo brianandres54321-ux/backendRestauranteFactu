@@ -29,6 +29,14 @@ public class CierreCajaResponse {
     private int cantidadPedidos;
     private BigDecimal ticketPromedio;
 
+    // Base con la que se abrió la caja ese día — null si todavía no se ha
+    // registrado (el frontend debe pedirla antes de dejar cerrar la caja).
+    private BigDecimal baseInicial;
+    private boolean baseRegistrada;
+    // baseInicial + totalEfectivo — lo que debería haber físicamente en caja.
+    // null mientras no haya base registrada.
+    private BigDecimal totalEnCaja;
+
     private String notas;
     private boolean yaExiste; // true si ese día ya tiene cierre registrado
 

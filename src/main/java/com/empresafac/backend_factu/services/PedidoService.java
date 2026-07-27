@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import com.empresafac.backend_factu.dto_temp.response.PedidoItemResponse;
 import com.empresafac.backend_factu.dto_temp.response.PedidoResponse;
+import com.empresafac.backend_factu.entities.Empresa;
 import com.empresafac.backend_factu.entities.Mesa;
 import com.empresafac.backend_factu.entities.MesaGrupo;
 import com.empresafac.backend_factu.entities.MesaGrupoDetalle;
@@ -19,6 +20,7 @@ import com.empresafac.backend_factu.entities.PedidoItem;
 import com.empresafac.backend_factu.entities.Precio;
 import com.empresafac.backend_factu.entities.Producto;
 import com.empresafac.backend_factu.entities.Usuario;
+import com.empresafac.backend_factu.repositories.EmpresaRepository;
 import com.empresafac.backend_factu.repositories.MesaGrupoDetalleRepository;
 import com.empresafac.backend_factu.repositories.MesaRepository;
 import com.empresafac.backend_factu.repositories.PagoRepository;
@@ -36,6 +38,7 @@ public class PedidoService {
 
     private final PedidoRepository pedidoRepository;
     private final MesaRepository mesaRepository;
+    private final EmpresaRepository empresaRepository;
     private final ProductoRepository productoRepository;
     private final PrecioRepository precioRepository;
     private final PedidoItemRepository pedidoItemRepository;
@@ -76,6 +79,23 @@ public class PedidoService {
         return construirResponse(pedido);
     }
 
+    // --- 1B. ABRIR VENTA DIRECTA (sin mesa — para negocios tipo TIENDA) ---
+    @Transactional
+    public PedidoResponse abrirVentaDirecta(Long empresaId, Usuario usuario) {
+        Empresa empresa = empresaRepository.findById(empresaId)
+                .orElseThrow(() -> new RuntimeException("Empresa no encontrada"));
+
+        Pedido pedido = new Pedido();
+        pedido.setEmpresa(empresa);
+        pedido.setUsuario(usuario);
+        pedido.setEstado(Pedido.Estado.ABIERTO);
+        pedido.setTotal(BigDecimal.ZERO);
+        pedido.setFechaApertura(LocalDateTime.now());
+
+        pedidoRepository.save(pedido);
+        return construirResponse(pedido);
+    }
+
     private PedidoResponse crearPedidoGrupal(Mesa mesa, MesaGrupo grupo, Usuario usuario) {
         Pedido pedido = new Pedido();
         pedido.setEmpresa(mesa.getEmpresa());
@@ -103,14 +123,27 @@ public class PedidoService {
 
         inventarioService.descontarStock(empresaId, producto, cantidad);
 
-        PedidoItem item = new PedidoItem();
-        item.setPedido(pedido);
-        item.setProducto(producto);
-        item.setCantidad(cantidad);
-        item.setPrecioUnitario(precio.getPrecioVenta());
+        // Si el producto ya está en el pedido, sumamos a esa línea en vez de
+        // crear una nueva — así "escanear/agregar" dos veces el mismo
+        // producto se ve como una sola línea con la cantidad acumulada.
+        PedidoItem item = pedido.getItems().stream()
+                .filter(i -> i.getProducto().getId().equals(productoId))
+                .findFirst()
+                .orElse(null);
 
-        pedidoItemRepository.save(item);
-        pedido.getItems().add(item);
+        if (item != null) {
+            item.setCantidad(item.getCantidad().add(cantidad));
+            pedidoItemRepository.save(item);
+        } else {
+            item = new PedidoItem();
+            item.setPedido(pedido);
+            item.setProducto(producto);
+            item.setCantidad(cantidad);
+            item.setPrecioUnitario(precio.getPrecioVenta());
+            pedidoItemRepository.save(item);
+            pedido.getItems().add(item);
+        }
+
         pedido.setTotal(pedido.getTotal().add(precio.getPrecioVenta().multiply(cantidad)));
 
         if (pedido.getMesa() != null && pedido.getMesa().getEstado() == Mesa.Estado.LIBRE) {
@@ -156,6 +189,38 @@ public class PedidoService {
             pedido.setTotal(BigDecimal.ZERO);
         }
 
+        Pedido pedidoGuardado = pedidoRepository.save(pedido);
+        return construirResponse(pedidoGuardado);
+    }
+
+    // --- 3B. QUITAR SOLO ALGUNAS UNIDADES DE UN ITEM ---
+    @Transactional
+    public PedidoResponse reducirCantidadItem(Long empresaId, Long itemId, BigDecimal cantidadAQuitar) {
+        PedidoItem item = pedidoItemRepository.findById(itemId)
+                .orElseThrow(() -> new RuntimeException("Ítem de pedido no encontrado"));
+
+        Pedido pedido = item.getPedido();
+
+        if (!pedido.getEmpresa().getId().equals(empresaId)) {
+            throw new RuntimeException("No tiene permisos sobre este pedido");
+        }
+
+        if (cantidadAQuitar == null || cantidadAQuitar.signum() <= 0) {
+            throw new RuntimeException("La cantidad a quitar debe ser mayor a cero");
+        }
+
+        // Si pide quitar todo (o más de lo que hay), se elimina la línea completa.
+        if (cantidadAQuitar.compareTo(item.getCantidad()) >= 0) {
+            return eliminarItem(empresaId, itemId);
+        }
+
+        inventarioService.aumentarStock(empresaId, item.getProducto(), cantidadAQuitar);
+
+        BigDecimal subtotalQuitado = item.getPrecioUnitario().multiply(cantidadAQuitar);
+        item.setCantidad(item.getCantidad().subtract(cantidadAQuitar));
+        pedidoItemRepository.save(item);
+
+        pedido.setTotal(pedido.getTotal().subtract(subtotalQuitado));
         Pedido pedidoGuardado = pedidoRepository.save(pedido);
         return construirResponse(pedidoGuardado);
     }
@@ -252,7 +317,7 @@ public class PedidoService {
         res.setId(p.getId());
         res.setEmpresaId(p.getEmpresa().getId());
         res.setMesaId(p.getMesa() != null ? p.getMesa().getId() : null);
-        res.setMesa(p.getMesa() != null ? p.getMesa().getNombre() : "Grupal");
+        res.setMesa(p.getMesa() != null ? p.getMesa().getNombre() : "Venta directa");
         res.setGrupoId(p.getGrupo() != null ? p.getGrupo().getId() : null);
         res.setUsuarioId(p.getUsuario().getId());
         res.setTotal(p.getTotal());

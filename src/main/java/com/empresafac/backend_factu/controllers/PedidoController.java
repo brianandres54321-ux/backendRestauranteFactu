@@ -16,7 +16,9 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.empresafac.backend_factu.dto_temp.request.AbrirPedidoRequest;
+import com.empresafac.backend_factu.dto_temp.request.AbrirVentaDirectaRequest;
 import com.empresafac.backend_factu.dto_temp.request.AgregarProductoRequest;
+import com.empresafac.backend_factu.dto_temp.request.ReducirCantidadRequest;
 import com.empresafac.backend_factu.dto_temp.request.RegistrarPagoRequest;
 import com.empresafac.backend_factu.dto_temp.response.PedidoResponse;
 import com.empresafac.backend_factu.entities.Pago;
@@ -43,6 +45,15 @@ public class PedidoController {
         return pedidoService.abrirPedido(empresaId, req.getMesaId(), usuario);
     }
 
+    // Venta sin mesa — negocios tipo TIENDA
+    @PreAuthorize("hasAnyRole('ADMIN', 'CAJERO', 'MESERO')")
+    @PostMapping("/venta-directa")
+    public PedidoResponse abrirVentaDirecta(@PathVariable Long empresaId,
+            @RequestBody AbrirVentaDirectaRequest req) {
+        Usuario usuario = usuarioService.obtenerPorId(empresaId, req.getUsuarioId());
+        return pedidoService.abrirVentaDirecta(empresaId, usuario);
+    }
+
     @PreAuthorize("hasAnyRole('ADMIN', 'CAJERO', 'MESERO')")
     @PostMapping("/{pedidoId}/productos")
     public PedidoResponse agregarProducto(@PathVariable Long empresaId,
@@ -57,6 +68,16 @@ public class PedidoController {
             @PathVariable("empresaId") Long empresaId,
             @PathVariable("itemId") Long itemId) {
         return pedidoService.eliminarItem(empresaId, itemId);
+    }
+
+    // Quitar solo N unidades de un ítem, en vez de la línea completa
+    @PreAuthorize("hasAnyRole('ADMIN', 'CAJERO', 'MESERO')")
+    @PatchMapping("/items/{itemId}/cantidad")
+    public PedidoResponse reducirCantidadItem(
+            @PathVariable("empresaId") Long empresaId,
+            @PathVariable("itemId") Long itemId,
+            @RequestBody ReducirCantidadRequest req) {
+        return pedidoService.reducirCantidadItem(empresaId, itemId, req.getCantidad());
     }
 
     @PreAuthorize("hasAnyRole('ADMIN', 'CAJERO', 'MESERO')")

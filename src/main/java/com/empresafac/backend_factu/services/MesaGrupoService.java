@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import com.empresafac.backend_factu.entities.Mesa;
@@ -24,6 +26,8 @@ import lombok.RequiredArgsConstructor;
 @Service
 @RequiredArgsConstructor
 public class MesaGrupoService {
+
+    private static final Logger log = LoggerFactory.getLogger(MesaGrupoService.class);
 
     private final EmpresaRepository empresaRepository;
     private final MesaRepository mesaRepository;
@@ -231,6 +235,6 @@ public class MesaGrupoService {
         // 4. Limpiamos la tabla de detalles (rompemos la unión física de las mesas)
         detalleRepository.deleteAllByGrupoId(grupo.getId());
 
-        System.out.println("Grupo " + grupo.getId() + " liberado y mesas puestas en LIBRE.");
+        log.info("Grupo {} liberado y mesas puestas en LIBRE.", grupo.getId());
     }
 }

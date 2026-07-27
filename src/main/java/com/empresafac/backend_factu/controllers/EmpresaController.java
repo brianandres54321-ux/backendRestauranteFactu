@@ -32,7 +32,8 @@ public class EmpresaController {
     private final EmpresaContext empresaContext;
 
     private EmpresaResponse toResponse(Empresa e) {
-        return new EmpresaResponse(e.getId(), e.getNombre(), e.getNitRut(), e.getPlan(), e.getActiva());
+        return new EmpresaResponse(e.getId(), e.getNombre(), e.getNitRut(), e.getPlan(),
+                e.getTipoNegocio().name(), e.getActiva());
     }
 
     // Público — para el login

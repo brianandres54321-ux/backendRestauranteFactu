@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -30,6 +32,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PagoService {
 
+    private static final Logger log = LoggerFactory.getLogger(PagoService.class);
+
     private final PagoRepository pagoRepository;
     private final PedidoRepository pedidoRepository;
     private final MesaRepository mesaRepository;
@@ -47,10 +51,10 @@ public class PagoService {
     // ─────────────────────────────────────────────────────────────
 
     @Transactional
-    public void registrarPago(Long pedidoId, Pago.Metodo metodo,
+    public void registrarPago(Long empresaId, Long pedidoId, Pago.Metodo metodo,
             BigDecimal monto, String codigoCupon) {
 
-        Pedido pedido = pedidoRepository.findById(pedidoId)
+        Pedido pedido = pedidoRepository.findByIdAndEmpresaId(pedidoId, empresaId)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
         if (pedido.getEstado() != Pedido.Estado.ABIERTO) {
@@ -89,7 +93,7 @@ public class PagoService {
         // ✅ Validar que el plan incluye MercadoPago
         planValidador.validarMercadoPago(empresaId);
 
-        Pedido pedido = pedidoRepository.findById(pedidoId)
+        Pedido pedido = pedidoRepository.findByIdAndEmpresaId(pedidoId, empresaId)
                 .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
         if (pedido.getEstado() != Pedido.Estado.ABIERTO) {
@@ -105,7 +109,7 @@ public class PagoService {
 
         // notificationUrl usa ngrok para que MP pueda llamar a localhost
         String webhookUrl = ngrokUrl + "/empresas/" + empresaId + "/pagos/mercadopago/webhook";
-        System.out.println(">>> Webhook URL: " + webhookUrl);
+        log.debug("Webhook URL generada: {}", webhookUrl);
 
         PreferenceRequest request = PreferenceRequest.builder()
                 .items(List.of(item))
@@ -127,26 +131,26 @@ public class PagoService {
     // ─────────────────────────────────────────────────────────────
 
     @Transactional
-    public void procesarWebhook(String paymentId) throws MPException, MPApiException {
+    public void procesarWebhook(Long empresaId, String paymentId) throws MPException, MPApiException {
 
-        System.out.println(">>> WEBHOOK RECIBIDO — paymentId: " + paymentId);
+        log.info("Webhook MercadoPago recibido — empresaId={} paymentId={}", empresaId, paymentId);
 
         PaymentClient client = new PaymentClient();
         Payment payment = client.get(Long.parseLong(paymentId));
 
-        System.out.println(">>> Estado del pago: " + payment.getStatus());
+        log.debug("Estado del pago {}: {}", paymentId, payment.getStatus());
 
         if (!"approved".equals(payment.getStatus())) {
-            System.out.println(">>> Pago no aprobado, ignorando.");
+            log.info("Pago {} no aprobado, ignorando.", paymentId);
             return;
         }
 
         Long pedidoId = Long.parseLong(payment.getExternalReference());
         BigDecimal monto = payment.getTransactionAmount();
 
-        System.out.println(">>> Registrando pago para pedido #" + pedidoId + " por $" + monto);
-
-        registrarPago(pedidoId, Pago.Metodo.MERCADOPAGO, monto, null);
+        // registrarPago valida que el pedido pertenezca a empresaId (findByIdAndEmpresaId),
+        // así que un webhook manipulado no puede acreditar pagos a pedidos de otra empresa.
+        registrarPago(empresaId, pedidoId, Pago.Metodo.MERCADOPAGO, monto, null);
 
         // Guardar referencia de MercadoPago en el pago
         List<Pago> pagos = pagoRepository.findAllByPedidoId(pedidoId);
@@ -156,14 +160,16 @@ public class PagoService {
             pagoRepository.save(ultimo);
         }
 
-        System.out.println(">>> Pedido #" + pedidoId + " cerrado y mesa liberada correctamente.");
+        log.info("Pedido #{} cerrado y mesa liberada correctamente.", pedidoId);
     }
 
     // ─────────────────────────────────────────────────────────────
     // LISTAR
     // ─────────────────────────────────────────────────────────────
 
-    public List<Pago> listarPorPedido(Long pedidoId) {
+    public List<Pago> listarPorPedido(Long empresaId, Long pedidoId) {
+        pedidoRepository.findByIdAndEmpresaId(pedidoId, empresaId)
+                .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
         return pagoRepository.findAllByPedidoId(pedidoId);
     }
 
@@ -187,6 +193,6 @@ public class PagoService {
         }
 
         pedidoRepository.save(pedido);
-        System.out.println(">>> Pedido #" + pedido.getId() + " PAGADO — mesa liberada.");
+        log.info("Pedido #{} PAGADO — mesa liberada.", pedido.getId());
     }
 }

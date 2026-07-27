@@ -43,9 +43,15 @@ public class CierreCaja {
     @Column(nullable = false)
     private LocalDate fecha;
 
-    // Momento en que se hizo el corte
-    @Column(name = "cerrado_en", nullable = false)
-    private LocalDateTime cerradoEn = LocalDateTime.now();
+    // Momento en que se hizo el corte — null mientras el día solo tiene la
+    // base registrada pero todavía no se ha cerrado.
+    @Column(name = "cerrado_en")
+    private LocalDateTime cerradoEn;
+
+    // Efectivo con el que se abrió la caja ese día (fondo para dar vueltas).
+    // null hasta que alguien la registre explícitamente.
+    @Column(name = "base_inicial", precision = 14, scale = 2)
+    private BigDecimal baseInicial;
 
     // Totales del día
     @Column(precision = 14, scale = 2)

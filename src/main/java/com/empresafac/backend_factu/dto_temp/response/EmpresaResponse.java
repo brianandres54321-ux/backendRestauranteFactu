@@ -12,5 +12,6 @@ public class EmpresaResponse {
     private String nombre;
     private String nitRut;
     private String plan;
+    private String tipoNegocio;
     private Boolean activa;
 }

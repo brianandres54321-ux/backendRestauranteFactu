@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.empresafac.backend_factu.Security.EmpresaContext;
 import com.empresafac.backend_factu.dto_temp.request.CategoriaRequest;
 import com.empresafac.backend_factu.dto_temp.response.CategoriaResponse;
 import com.empresafac.backend_factu.entities.Categoria;
@@ -28,7 +27,6 @@ import lombok.RequiredArgsConstructor;
 public class CategoriaController {
 
     private final CategoriaService categoriaService;
-    private final EmpresaContext empresaContext;
 
     @GetMapping
     public List<CategoriaResponse> listar(@PathVariable Long empresaId) {

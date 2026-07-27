@@ -3,6 +3,7 @@ package com.empresafac.backend_factu.config;
 import java.security.Key;
 import java.util.Date;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.empresafac.backend_factu.entities.Usuario;
@@ -15,10 +16,11 @@ import io.jsonwebtoken.security.Keys;
 @Service
 public class JwtService {
 
-    private final String SECRET = "MI_CLAVE_SUPER_SECRETA_DE_32_BYTES_MINIMO_123456";
+    @Value("${jwt.secret}")
+    private String secret;
 
     private Key getKey() {
-        return Keys.hmacShaKeyFor(SECRET.getBytes());
+        return Keys.hmacShaKeyFor(secret.getBytes());
     }
 
     public String generarToken(Usuario usuario) {
@@ -28,6 +30,7 @@ public class JwtService {
                 .claim("empresaId", usuario.getEmpresa().getId())
                 .claim("empresaNombre", usuario.getEmpresa().getNombre())
                 .claim("plan", usuario.getEmpresa().getPlan()) // ✅ plan incluido
+                .claim("tipoNegocio", usuario.getEmpresa().getTipoNegocio().name())
                 .claim("rol", usuario.getRol().name())
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 8))

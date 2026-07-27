@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.empresafac.backend_factu.dto_temp.response.CierreCajaResponse;
 import com.empresafac.backend_factu.dto_temp.response.CierreCajaResponse.FilaPagoDTO;
 import com.empresafac.backend_factu.entities.CierreCaja;
+import com.empresafac.backend_factu.entities.Empresa;
 import com.empresafac.backend_factu.entities.Pago;
 import com.empresafac.backend_factu.entities.Usuario;
 import com.empresafac.backend_factu.repositories.CierreCajaRepository;
@@ -43,19 +44,54 @@ public class CierreCajaService {
 
     public CierreCajaResponse preview(Long empresaId, LocalDate fecha) {
 
-        boolean yaExiste = cierreRepository.existsByEmpresaIdAndFecha(empresaId, fecha);
+        CierreCaja existente = cierreRepository.findByEmpresaIdAndFecha(empresaId, fecha).orElse(null);
 
-        // Si ya existe, devuelve el cierre guardado directamente
-        if (yaExiste) {
-            CierreCaja existente = cierreRepository
-                    .findByEmpresaIdAndFecha(empresaId, fecha).orElseThrow();
+        // Ya cerrado definitivamente — se devuelve tal cual quedó guardado.
+        if (existente != null && existente.getCerradoEn() != null) {
             CierreCajaResponse res = toResponse(existente);
             res.setYaExiste(true);
             return res;
         }
 
+        // Sin cerrar todavía — puede que ya tenga la base registrada o no.
         List<Pago> pagos = getPagosDeDia(empresaId, fecha);
-        return buildPreview(empresaId, fecha, pagos);
+        BigDecimal baseInicial = existente != null ? existente.getBaseInicial() : null;
+        return buildPreview(fecha, pagos, baseInicial);
+    }
+
+    // ─────────────────────────────────────────────────────────────
+    // REGISTRAR BASE — guarda cuánto efectivo se dejó al abrir la caja
+    // PUT /empresas/{id}/cierres/base
+    // ─────────────────────────────────────────────────────────────
+
+    @Transactional
+    public CierreCajaResponse registrarBase(Long empresaId, Long usuarioId,
+            LocalDate fecha, BigDecimal baseInicial) {
+
+        CierreCaja cierre = cierreRepository.findByEmpresaIdAndFecha(empresaId, fecha).orElse(null);
+
+        if (cierre != null && cierre.getCerradoEn() != null) {
+            throw new RuntimeException(
+                    "El cierre de caja del " + fecha.format(FMT_FECHA)
+                            + " ya está hecho, no se puede cambiar la base.");
+        }
+
+        if (cierre == null) {
+            Empresa empresa = empresaRepository.findById(empresaId)
+                    .orElseThrow(() -> new RuntimeException("Empresa no encontrada"));
+            Usuario usuario = usuarioRepository.findById(usuarioId)
+                    .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+            cierre = new CierreCaja();
+            cierre.setEmpresa(empresa);
+            cierre.setUsuario(usuario);
+            cierre.setFecha(fecha);
+        }
+
+        cierre.setBaseInicial(baseInicial);
+        cierreRepository.save(cierre);
+
+        List<Pago> pagos = getPagosDeDia(empresaId, fecha);
+        return buildPreview(fecha, pagos, baseInicial);
     }
 
     // ─────────────────────────────────────────────────────────────
@@ -67,9 +103,16 @@ public class CierreCajaService {
     public CierreCajaResponse ejecutarCierre(Long empresaId, Long usuarioId,
             LocalDate fecha, String notas) {
 
-        if (cierreRepository.existsByEmpresaIdAndFecha(empresaId, fecha)) {
+        CierreCaja cierre = cierreRepository.findByEmpresaIdAndFecha(empresaId, fecha).orElse(null);
+
+        if (cierre != null && cierre.getCerradoEn() != null) {
             throw new RuntimeException(
                     "Ya existe un cierre de caja para el " + fecha.format(FMT_FECHA));
+        }
+
+        if (cierre == null || cierre.getBaseInicial() == null) {
+            throw new RuntimeException(
+                    "Falta registrar la base de caja del día antes de poder cerrar.");
         }
 
         List<Pago> pagos = getPagosDeDia(empresaId, fecha);
@@ -81,15 +124,10 @@ public class CierreCajaService {
                 .map(p -> p.getPedido().getId())
                 .distinct().count();
 
-        var empresa = empresaRepository.findById(empresaId)
-                .orElseThrow(() -> new RuntimeException("Empresa no encontrada"));
         Usuario usuario = usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
 
-        CierreCaja cierre = new CierreCaja();
-        cierre.setEmpresa(empresa);
         cierre.setUsuario(usuario);
-        cierre.setFecha(fecha);
         cierre.setCerradoEn(LocalDateTime.now());
         cierre.setTotalVentas(totalVentas);
         cierre.setTotalEfectivo(totalEfectivo);
@@ -114,6 +152,7 @@ public class CierreCajaService {
         return cierreRepository
                 .findAllByEmpresaIdOrderByFechaDesc(empresaId)
                 .stream()
+                .filter(c -> c.getCerradoEn() != null) // solo cierres ya hechos, no borradores con base
                 .map(c -> {
                     CierreCajaResponse r = toResponse(c);
                     r.setYaExiste(true);
@@ -163,7 +202,7 @@ public class CierreCajaService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private CierreCajaResponse buildPreview(Long empresaId, LocalDate fecha, List<Pago> pagos) {
+    private CierreCajaResponse buildPreview(LocalDate fecha, List<Pago> pagos, BigDecimal baseInicial) {
         BigDecimal totalVentas = sumar(pagos);
         BigDecimal totalEfectivo = sumarMetodo(pagos, Pago.Metodo.EFECTIVO);
         BigDecimal totalMercadoPago = sumarMetodo(pagos, Pago.Metodo.MERCADOPAGO);
@@ -186,6 +225,11 @@ public class CierreCajaService {
         res.setNotas("");
         res.setYaExiste(false);
         res.setPagos(toFilas(pagos));
+        res.setBaseInicial(baseInicial);
+        res.setBaseRegistrada(baseInicial != null);
+        if (baseInicial != null) {
+            res.setTotalEnCaja(baseInicial.add(totalEfectivo));
+        }
         return res;
     }
 
@@ -205,6 +249,11 @@ public class CierreCajaService {
         res.setCantidadPedidos(c.getCantidadPedidos());
         res.setTicketPromedio(ticket);
         res.setNotas(c.getNotas());
+        res.setBaseInicial(c.getBaseInicial());
+        res.setBaseRegistrada(c.getBaseInicial() != null);
+        if (c.getBaseInicial() != null) {
+            res.setTotalEnCaja(c.getBaseInicial().add(c.getTotalEfectivo()));
+        }
         return res;
     }
 

@@ -3,6 +3,8 @@ package com.empresafac.backend_factu.config;
 import java.io.IOException;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,25 +22,21 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class JwtFilter extends OncePerRequestFilter {
 
+    private static final Logger log = LoggerFactory.getLogger(JwtFilter.class);
+
     private final JwtService jwtService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        // ✅ Dejar pasar OPTIONS sin validar token — son preflights de CORS
+        // Dejar pasar OPTIONS sin validar token — son preflights de CORS
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             filterChain.doFilter(request, response);
             return;
         }
 
         String header = request.getHeader("Authorization");
-
-        if (header != null && header.startsWith("Bearer ")) {
-            System.err.println("TOKEN RECIBIDO: " + header.substring(7));
-        } else {
-            System.err.println("AUTORIZACIÓN AUSENTE O MAL FORMADA en: " + request.getRequestURI());
-        }
 
         if (header != null && header.startsWith("Bearer ")) {
             String token = header.substring(7);
@@ -53,8 +51,6 @@ public class JwtFilter extends OncePerRequestFilter {
                     String rolUpper = rol.toUpperCase();
                     String authority = rolUpper.startsWith("ROLE_") ? rolUpper : "ROLE_" + rolUpper;
 
-                    System.out.println("DEBUG SECURITY: Usuario=" + username + " | Authority=" + authority);
-
                     UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                             username,
                             null,
@@ -63,12 +59,15 @@ public class JwtFilter extends OncePerRequestFilter {
                     auth.setDetails(empresaId);
                     SecurityContextHolder.getContext().setAuthentication(auth);
                 } else {
-                    System.err.println("TOKEN INVÁLIDO: username=" + username + " | rol=" + rol);
+                    log.warn("Token inválido en {}: falta username o rol", request.getRequestURI());
                 }
             } catch (Exception e) {
-                System.err.println("ERROR AL PROCESAR TOKEN: " + e.getClass().getSimpleName() + " - " + e.getMessage());
+                log.warn("Error al procesar token en {}: {} - {}",
+                        request.getRequestURI(), e.getClass().getSimpleName(), e.getMessage());
                 SecurityContextHolder.clearContext();
             }
+        } else {
+            log.debug("Autorización ausente o mal formada en: {}", request.getRequestURI());
         }
 
         filterChain.doFilter(request, response);
